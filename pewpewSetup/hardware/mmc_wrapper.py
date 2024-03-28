@@ -1,3 +1,19 @@
+"""
+--------------------------------
+Note :
+    This wrapper is taken from : https://github.com/PyMoDAQ/pymodaq_plugins_physik_instrumente/blob/main/src/pymodaq_plugins_physik_instrumente/daq_move_plugins/daq_move_PI_MMC.py.
+    Some parts have be modified to work best with our setup and the M-112.1DG stage
+--------------------------------
+
+This plugin use an old dll from PI MMC-DLL not compatible with their new GCS-command stuff
+The dll is 32 bits only so should be used with a 32bits python distribution
+C-862 Mercury™-DC Motor Controller
+C-863 Mercury™-DC Motor Controller
+C-663 Mercury™-Step Motor Controller
+C-170 Redstone PILine® Controller
+
+"""
+
 import sys
 from ctypes import windll, create_string_buffer, POINTER, byref, pointer
 from ctypes import c_uint, c_int, c_char, c_char_p, c_void_p, c_short, c_long, c_bool, c_double, c_uint64, c_uint32, Array, CFUNCTYPE, WINFUNCTYPE
