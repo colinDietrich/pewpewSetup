@@ -1,5 +1,6 @@
 import pyvisa
 import struct
+import sys
 
 trig_mode_disct = {
     0: "EDGE",
@@ -60,7 +61,7 @@ class InfiniiumOscilloscope:
     Represents a connection to a Keysight Infiniium Oscilloscope and provides methods to control and retrieve data from the oscilloscope.
     """
 
-    def __init__(self, address="TCPIP::169.254.66.192::INSTR"):
+    def __init__(self, address):
         """
         Initializes the oscilloscope connection using the provided VISA address.
 
@@ -77,25 +78,26 @@ class InfiniiumOscilloscope:
             print(f"Failed to connect to Infiniium Oscilloscope: {e}")
             self.scope = None  # No connection if an error occurred
 
-    def check_instrument_errors(self, command):
+    def check_instrument_errors(self, command, exit_on_error=True):
         """
         Queries the oscilloscope for any errors and prints them. Continues querying until no more errors are returned.
 
         :param command: The command after which to check for errors. Used for error reporting.
         """
-        if self.scope is None:
-            print("Oscilloscope is not connected.")
-            return
         while True:
-            try:
-                error_string = self.scope.query(":SYSTem:ERRor? STRing").strip()
-                if error_string.startswith("+0,"):  # "No error"
+            error_string = self.scope.query(":SYSTem:ERRor? STRing")
+            if error_string: # If there is an error string value.
+                if error_string.find("0,", 0, 2) == -1: # Not "No error".
+                    print("ERROR: %s, command: '%s'" % (error_string, command))
+                    if exit_on_error:
+                        print("Exited because of error.")
+                        sys.exit(1)
+                else: # "No error"
                     break
-                else:
-                    print(f"ERROR: {error_string}, command: '{command}'")
-            except Exception as e:
-                print(f"Failed to check errors for command '{command}': {e}")
-                break
+            else: # :SYSTem:ERRor? STRing should always return string.
+                print("ERROR: :SYSTem:ERRor? STRing returned nothing, command: '%s'"% command)
+                print("Exited because of error.")
+                sys.exit(1)
 
     def do_command(self, command):
         """
@@ -107,7 +109,7 @@ class InfiniiumOscilloscope:
             print("Oscilloscope is not connected.")
             return
         try:
-            self.scope.write(command)
+            self.scope.write("%s" % command)
             self.check_instrument_errors(command)  # Check for errors related to the command
         except Exception as e:
             print(f"Failed to execute command '{command}': {e}")
@@ -430,62 +432,64 @@ class InfiniiumOscilloscope:
             return None
 
 
-def get_waveform(self, channel="channel1", waveform_format=wav_form_dict[1], name_csv="waveform_data.csv"):
-    """
-    Retrieves waveform data from the specified oscilloscope channel and saves it to a CSV file.
+    def get_waveform(self, channel="channel1", waveform_format=wav_form_dict[1], name_csv="waveform_data.csv"):
+        """
+        Retrieves waveform data from the specified oscilloscope channel and saves it to a CSV file.
 
-    :param channel: The channel from which to retrieve waveform data (e.g., "channel1").
-    :param waveform_format: The format of the waveform data to be retrieved.
-    :param name_csv: The name of the CSV file where the waveform data will be saved.
-    """
-    try:
-        # Query the oscilloscope for the current waveform type and print it
-        qresult = self.do_query_string(":WAVeform:TYPE?")
-        print(f"Waveform type: {qresult}")
+        :param channel: The channel from which to retrieve waveform data (e.g., "channel1").
+        :param waveform_format: The format of the waveform data to be retrieved.
+        :param name_csv: The name of the CSV file where the waveform data will be saved.
+        """
+        try:
+            # Query the oscilloscope for the current waveform type and print it
+            qresult = self.do_query_string(":WAVeform:TYPE?")
+            print(f"Waveform type: {qresult}")
 
-        # Query the oscilloscope for the number of waveform points and print it
-        qresult = self.do_query_string(":WAVeform:POINts?")
-        print(f"Waveform points: {qresult}")
+            # Query the oscilloscope for the number of waveform points and print it
+            qresult = self.do_query_string(":WAVeform:POINts?")
+            print(f"Waveform points: {qresult}")
 
-        # Set the source of the waveform data to the specified channel
-        self.do_command(f":WAVeform:SOURce {channel}")
-        # Confirm the waveform source and print it
-        qresult = self.do_query_string(":WAVeform:SOURce?")
-        print(f"Waveform source: {qresult}")
+            # Set the source of the waveform data to the specified channel
+            self.do_command(f":WAVeform:SOURce {channel}")
+            # Confirm the waveform source and print it
+            qresult = self.do_query_string(":WAVeform:SOURce?")
+            print(f"Waveform source: {qresult}")
 
-        # Set the format of the waveform data to be retrieved
-        self.do_command(f":WAVeform:FORMat {waveform_format}")
-        # Confirm the waveform format and print it
-        print(f"Waveform format: {self.do_query_string(':WAVeform:FORMat?')}")
+            # Set the format of the waveform data to be retrieved
+            self.do_command(f":WAVeform:FORMat {waveform_format}")
+            # Confirm the waveform format and print it
+            print(f"Waveform format: {self.do_query_string(':WAVeform:FORMat?')}")
 
-        # Retrieve and print the preamble information, which includes scaling factors and units
-        x_increment, x_origin, x_units, y_increment, y_origin, y_units, date, time = self.get_preamble()
-        
-        # Disable streaming to retrieve the waveform data
-        self.do_command(":WAVeform:STReaming OFF")
-        # Query the oscilloscope for the waveform data
-        sData = self.do_query_ieee_block(":WAVeform:DATA?")
-        # Unpack the retrieved waveform data
-        values = struct.unpack("%db" % len(sData), sData)
-        print(f"Number of data values: {len(values)}")
+            # Retrieve and print the preamble information, which includes scaling factors and units
+            x_increment, x_origin, x_units, y_increment, y_origin, y_units, date, time = self.get_preamble()
+            
+            # Disable streaming to retrieve the waveform data
+            self.do_command(":WAVeform:STReaming OFF")
+            # Query the oscilloscope for the waveform data
+            sData = self.do_query_ieee_block(":WAVeform:DATA?")
+            # Unpack the retrieved waveform data
+            values = struct.unpack("%db" % len(sData), sData)
+            print(f"Number of data values: {len(values)}")
 
-        # Write the waveform data, along with scaling factors and units, to the specified CSV file
-        with open(name_csv, "w") as f:
-            f.write("Date, Time, Time (s), Voltage (V)\n")
-            for i in range(len(values)):
-                time_val = x_origin + (i * x_increment)
-                voltage = (values[i] * y_increment) + y_origin
-                f.write(f"{date}, {time}, {time_val:E}, {voltage:f}\n")
-        print(f"Waveform data written to {name_csv}.")
+            # Write the waveform data, along with scaling factors and units, to the specified CSV file
+            with open(name_csv, "w") as f:
+                f.write("%s, %s\n" % ("date", date))
+                f.write("%s, %s\n" % ("time", time))
+                f.write(f"Time ({x_units}), Voltage ({y_units})\n")
+                for i in range(len(values)):
+                    time_val = x_origin + (i * x_increment)
+                    voltage = (values[i] * y_increment) + y_origin
+                    f.write(f"{time_val:E}, {voltage:f}\n")
+            print(f"Waveform data written to {name_csv}.")
 
-    except Exception as e:
-        print(f"Error occurred while getting the waveform: {e}")
+        except Exception as e:
+            print(f"Error occurred while getting the waveform: {e}")
 
-def close(self):
-    """
-    Closes the connection to the oscilloscope.
-    """
-    if self.scope is not None:
-        self.scope.close()  # Close the VISA resource
-        print("Connection to Infiniium Oscilloscope closed.")
+    def close(self):
+        """
+        Closes the connection to the oscilloscope.
+        """
+        if self.scope is not None:
+            self.scope.close()  # Close the VISA resource
+            print("Connection to Infiniium Oscilloscope closed.")
 

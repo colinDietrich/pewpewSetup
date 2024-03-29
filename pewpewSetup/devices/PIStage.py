@@ -1,4 +1,4 @@
-from mmc_wrapper import MMC_Wrapper
+from .mmc_wrapper import MMC_Wrapper
 from qtpy.QtCore import QThread
 
 class PIStage:
@@ -144,6 +144,7 @@ class PIStage:
             print("Move complete.")
             pos = self.wrapper.getPos()
             print(f"Final position: {pos}")
+            return pos
         except Exception as e:
             print(f"Error moving: {e}")
 
